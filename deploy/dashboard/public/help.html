@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>使用说明 — BLE Simulator Dashboard</title>
+<style>
+  :root {
+    --background: 0 0% 100%; --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%; --border: 240 5.9% 90%; --input: 240 5.9% 90%;
+    --muted: 240 4.8% 95.9%; --muted-foreground: 240 3.8% 46.1%;
+    --primary: 240 5.9% 10%; --primary-foreground: 0 0% 98%;
+    --accent: 240 4.8% 95.9%; --radius: 0.5rem;
+    --ok: 142 71% 45%; --bad: 0 84% 60%; --warn: 38 92% 50%;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: hsl(var(--muted) / 0.5); color: hsl(var(--foreground));
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  .back { color: hsl(var(--muted-foreground)); text-decoration: none; font-size: 13px; }
+  .back:hover { color: hsl(var(--foreground)); }
+  .card {
+    background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+    border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px;
+  }
+  h2 { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+  h3 { font-size: 13.5px; font-weight: 600; margin: 16px 0 8px; }
+  p, li { font-size: 13.5px; line-height: 1.75; color: hsl(240 5% 30%); }
+  ul, ol { padding-left: 22px; }
+  code {
+    font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px;
+    background: hsl(var(--muted)); padding: 1px 6px; border-radius: 4px;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12.5px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid hsl(var(--border)); }
+  th { font-size: 12px; color: hsl(var(--muted-foreground)); text-transform: uppercase; letter-spacing: 0.03em; }
+  .tag {
+    display: inline-block; padding: 1px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600;
+    background: hsl(var(--muted)); color: hsl(var(--muted-foreground));
+  }
+  .tag.green { color: hsl(var(--ok)); background: hsl(var(--ok) / 0.08); }
+  .tag.blue { color: hsl(217 91% 50%); background: hsl(217 91% 50% / 0.08); }
+  .tag.orange { color: hsl(var(--warn)); background: hsl(var(--warn) / 0.08); }
+  .warn-box {
+    border: 1px solid hsl(var(--warn) / 0.4); background: hsl(var(--warn) / 0.06);
+    border-radius: var(--radius); padding: 12px 16px; font-size: 13px; margin: 10px 0;
+  }
+  .url { font-family: ui-monospace, monospace; font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="back" href="/">← 返回 Dashboard</a>
+    <h1>BLE Simulator 使用说明</h1>
+  </header>
+
+  <div class="card">
+    <h2>系统概览</h2>
+    <p>BLE 骑行设备模拟器：通过真实蓝牙广播，向骑行 App（Zwift / 行者 / Strava 等）模拟 FTMS 骑行台、功率计、速度踏频计、心率计。</p>
+    <ul>
+      <li><span class="tag green">MCP</span> <strong>MCP 服务</strong>：HTTP JSON-RPC 接口，供 AI Agent / 脚本控制，跟随 Docker 持续运行</li>
+      <li><span class="tag blue">Dashboard</span> 本页面：可视化控制台，<strong>与 MCP 共享同一份数据库持久化数据</strong></li>
+      <li><span class="tag orange">Skill</span> 操作文档：<a href="/skill/SKILL.md">/skill/SKILL.md</a></li>
+    </ul>
+    <p>关键约定：<strong>MCP 服务状态与模拟设备状态是两个独立维度</strong> —— MCP 服务跟随 Docker 一直在线；模拟设备是否运行由你通过 Dashboard 或 MCP 控制。</p>
+  </div>
+
+  <div class="card">
+    <h2>数据持久化</h2>
+    <p>所有模拟控制参数写入 SQLite（Docker 卷 <code>ble-data</code>），Dashboard 与 MCP 共享同一份数据：</p>
+    <ul>
+      <li>「模拟控制」页表单填好后点 <strong>启动 / 保存配置</strong> → 写入数据库（sessions 表）</li>
+      <li>刷新页面或点 <strong>载入已保存配置</strong> → 从数据库回填表单（MCP 的 <code>ble_get_config</code>）</li>
+      <li>MCP 端 <code>ble_start</code> 不带参数时，也复用数据库里最近一次会话配置</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>页签功能</h2>
+    <table>
+      <tr><th>页签</th><th>功能</th><th>对应 MCP 工具</th></tr>
+      <tr><td>状态</td><td>MCP 服务状态 + 模拟设备状态（实时功率/阶段/心率）+ 快速启停</td><td>ble_status</td></tr>
+      <tr><td>模拟控制</td><td>4 种设备参数表单 + 动态模拟 + 骑行场景，启动/重启/停止/保存配置/载入配置</td><td>ble_start / ble_restart / ble_stop / ble_configure / ble_get_config</td></tr>
+      <tr><td>快捷模板</td><td>骑行动作模板 + 设备模板，一键启动或填入表单</td><td>ble_start</td></tr>
+      <tr><td>交互规则</td><td>自定义 BLE 指令响应规则</td><td>ble_set_interaction / ble_clear_interactions</td></tr>
+      <tr><td>会话</td><td>历史会话列表 + 详情</td><td>ble_list_sessions / ble_get_session</td></tr>
+      <tr><td>日志（底部栏）</td><td>通信日志，可收起/展开/拖动调高，高度持久化</td><td>ble_get_logs</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>骑行动作模板</h2>
+    <table>
+      <tr><th>模板</th><th>说明</th></tr>
+      <tr><td>全程骑行剧本</td><td>起步→巡航→爬坡(5%)→冲刺→下坡滑行→停车，循环</td></tr>
+      <tr><td>FTP 测试</td><td>2min 起步 → 8min 热身 → 20min FTP 全力块(280W) → 5min 冷却</td></tr>
+      <tr><td>爬坡训练</td><td>爬坡 6% → 下坡 -4% → 更陡 8%，两组循环</td></tr>
+      <tr><td>冲刺间歇</td><td>30s×1.5x + 90s×0.5x，8 组（intervals）</td></tr>
+      <tr><td>恢复骑行</td><td>100W 平稳 + 高频微停顿</td></tr>
+      <tr><td>热身-主课-冷却</td><td>5/20/5 min，1.2x 主课</td></tr>
+    </table>
+    <p>每个模板支持 <strong>一键启动</strong> 或 <strong>填入表单</strong>（填入后可微调再启动）。</p>
+  </div>
+
+  <div class="card">
+    <h2>设备与参数</h2>
+    <h3>设备类型</h3>
+    <table>
+      <tr><th>类型</th><th>BLE 服务</th><th>主要参数</th></tr>
+      <tr><td>FTMS 骑行台</td><td>0x1826</td><td>速度/踏频/功率/心率/阻力/坡度 + 控制点</td></tr>
+      <tr><td>功率计</td><td>0x1818</td><td>功率/踏频/轮周长 + 轮圈曲柄数据</td></tr>
+      <tr><td>速度踏频</td><td>0x1816</td><td>速度/踏频/轮周长</td></tr>
+      <tr><td>心率计</td><td>0x180D</td><td>心率/电量/佩戴位置</td></tr>
+    </table>
+    <h3>动态模拟</h3>
+    <p>功率/踏频/速度拟真波动 + 物理速度模型（体重/车重/滚动阻力/风阻）。<code>autoStart</code> 开启后无需 App 发 Start 即开始骑行。</p>
+    <h3>骑行场景</h3>
+    <ul>
+      <li><code>steady</code> 平稳 · <code>freeride</code> 自由骑 · <code>intervals</code> 间歇 · <code>warmup_main_cooldown</code> 热身-主课-冷却 · <code>ride_script</code> 骑行剧本（阶段序列，可循环）</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>连接方式</h2>
+    <p>手机 / 骑行 App 搜索蓝牙设备名（广播名），连接后即可收到数据。连接失败时可尝试在 App 中删除设备重新搜索（会话变化会导致序列号变化，需重新发现）。</p>
+    <div class="warn-box">
+      <strong>提示</strong>：模拟器通过宿主机 BlueZ 广播。若 App 能搜到但连接失败，检查宿主机 D-Bus 策略与 BlueZ 版本（≥ 5.87）。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>MCP 接入（AI Agent / 脚本）</h2>
+    <p>HTTP 端点：<span class="url">/mcp</span>（本页同源）或 <code>:3300/mcp</code></p>
+    <p>可用工具：ble_start / ble_stop / ble_restart / ble_status / ble_configure / ble_get_config / ble_set_interaction / ble_clear_interactions / ble_list_sessions / ble_get_session / ble_get_logs</p>
+    <p>详细协议见 <a href="/skill/SKILL.md">/skill/SKILL.md</a>。</p>
+  </div>
+</div>
+</body>
+</html>

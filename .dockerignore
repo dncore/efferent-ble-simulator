@@ -1,0 +1,9 @@
+node_modules/
+dist/
+data/
+.git/
+*.log
+.DS_Store
+.vscode/
+.claude/
+.remember/

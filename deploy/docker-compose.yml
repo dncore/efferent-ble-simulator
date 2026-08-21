@@ -1,0 +1,68 @@
+services:
+  mcp:
+    build:
+      context: ..
+      dockerfile: deploy/mcp/Dockerfile
+      args:
+        # 网络受限时覆盖（例：NPM_REGISTRY=https://registry.npmmirror.com \
+        # BETTER_SQLITE3_BINARY_HOST_MIRROR=https://registry.npmmirror.com/-/binary/better-sqlite3
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        BETTER_SQLITE3_BINARY_HOST_MIRROR: ${BETTER_SQLITE3_BINARY_HOST_MIRROR:-}
+    image: ble-simulator-mcp:latest
+    container_name: ble-mcp
+    restart: unless-stopped
+    ports:
+      - "3300:3300"
+    environment:
+      MCP_TRANSPORT: http
+      MCP_PORT: "3300"
+      MCP_HOST: 0.0.0.0
+      # 1=同类型会话序列号稳定（App 免忘记设备无缝重连）；默认每次会话变序列号
+      SIM_SERIAL_STABLE: ${SIM_SERIAL_STABLE:-}
+      # Skill 文档的公网下载地址（ble_get_version 返回，供 agent 检测到版本变化时重新拉取）
+      SKILL_PUBLIC_URL: ${SKILL_PUBLIC_URL:-}
+    volumes:
+      # 持久化 SQLite（会话/日志）
+      - ble-data:/app/data
+      # 宿主机 BlueZ D-Bus：BLE 外设只能跑在宿主机
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
+    security_opt:
+      # Ubuntu 的 AppArmor 默认会拦截容器连接宿主 D-Bus（An AppArmor policy
+      # prevents...org.freedesktop.DBus）。容器需访问宿主 BlueZ，信任级别等同
+      # 宿主进程，故不套用容器 AppArmor 配置。非 AppArmor 系统（Arch 等）无影响
+      - apparmor:unconfined
+    healthcheck:
+      test: ["CMD", "node", "-e",
+        "fetch('http://127.0.0.1:3300/mcp',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list',params:{}})}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  dashboard:
+    build:
+      context: ./dashboard
+      args:
+        # 构建期镜像源（与 mcp 相同，网络受限时覆盖）
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+    image: ble-simulator-dashboard:latest
+    container_name: ble-dashboard
+    restart: unless-stopped
+    ports:
+      # Dashboard 端口可配置：DASH_PORT=3330 bash scripts/docker-up.sh（默认 3330）
+      - "${DASH_PORT:-3330}:80"
+    environment:
+      # Skill 文档里 MCP/Dashboard 地址的部署机 IP（docker-up.sh 自动探测，也可覆盖）
+      SKILL_HOST_IP: ${SKILL_HOST_IP:-}
+      SKILL_MCP_PORT: ${MCP_PORT:-3300}
+      SKILL_DASH_PORT: ${DASH_PORT:-3330}
+    volumes:
+      # Skill 文件模板（与仓库同源，启动时替换占位符为部署地址）
+      - ../SKILL.md:/usr/share/nginx/html/skill/SKILL.md.tmpl:ro
+    depends_on:
+      mcp:
+        condition: service_healthy
+
+volumes:
+  ble-data:
